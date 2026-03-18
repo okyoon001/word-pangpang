@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#6B9E78">
+<title>세연이의 단어팡팡</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@700;800&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; user-select:none; }
+html { height:100%; overflow:hidden; }
+body { font-family:'Nanum Gothic','Apple SD Gothic Neo','Malgun Gothic',sans-serif; background:#6B9E78; display:flex; justify-content:center; height:100vh; height:100dvh; touch-action:none; overflow:hidden; -webkit-overflow-scrolling:touch; }
+#app { width:100%; max-width:420px; display:flex; flex-direction:column; height:100vh; height:100dvh; overflow:hidden; }
+
+/* Header */
+.header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; color:#2D2926; }
+.header .home-btn { font-size:26px; cursor:pointer; background:none; border:none; color:#2D2926; }
+.header .stage { font-size:20px; font-weight:800; letter-spacing:0.05em; }
+.header .coin { display:flex; align-items:center; gap:4px; font-size:18px; font-weight:800; }
+.header .coin::before { content:'🪙'; }
+
+/* Question Area */
+.question-area { margin:8px 16px; background:rgba(245,245,220,0.35); border-radius:16px; padding:16px 12px; display:flex; flex-direction:column; gap:12px; }
+.word-slot { display:flex; align-items:center; gap:8px; }
+.word-slot .label { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.word-slot .circles { display:flex; gap:6px; }
+.word-slot .circle { width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:17px; font-weight:800; color:#fff; letter-spacing:0.05em; transition:all .3s; }
+.circle.empty { background:rgba(255,255,255,0.3); }
+.circle.found { animation:popIn .3s ease; }
+@keyframes popIn { 0%{transform:scale(0.5);} 70%{transform:scale(1.15);} 100%{transform:scale(1);} }
+
+/* Grid */
+.grid-container { flex:1; display:flex; align-items:center; justify-content:center; padding:8px 16px; touch-action:none; }
+.grid { display:grid; grid-template-columns:repeat(5,1fr); gap:7px; width:100%; max-width:350px; touch-action:none; }
+.cell { aspect-ratio:1; background:#F5F5DC; border:1.5px solid #D5D0C0; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:clamp(20px,5.5vw,26px); font-weight:800; color:#2D2926; letter-spacing:0.05em; position:relative; cursor:pointer; transition:transform .1s; -webkit-tap-highlight-color:transparent; touch-action:none; }
+.cell::after { content:''; position:absolute; inset:-6px; border-radius:16px; } /* 터치 영역 확대 */
+.cell.selecting { transform:scale(1.08); border-color:#A0C878; }
+.cell .highlight { position:absolute; inset:0; border-radius:11px; opacity:0.45; pointer-events:none; }
+.cell.found-cell .highlight { opacity:0.55; }
+
+/* Footer */
+.footer { display:flex; align-items:center; justify-content:space-around; padding:12px 16px 20px; }
+.footer button { background:rgba(245,245,220,0.3); border:none; border-radius:12px; width:52px; height:52px; font-size:24px; cursor:pointer; color:#2D2926; transition:background .2s; }
+.footer button:active { background:rgba(245,245,220,0.6); }
+.gem-wrap { display:flex; flex-direction:column; align-items:center; gap:4px; }
+.gauge-bar { width:52px; height:7px; background:rgba(245,245,220,0.3); border-radius:3px; overflow:hidden; }
+.gauge-fill { height:100%; background:#E8B84B; border-radius:3px; transition:width .4s; }
+
+/* Overlay */
+.overlay { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:flex; align-items:center; justify-content:center; z-index:100; opacity:0; pointer-events:none; transition:opacity .3s; }
+.overlay.show { opacity:1; pointer-events:auto; }
+.overlay-box { background:#FAFAF2; border-radius:20px; padding:32px 24px; text-align:center; max-width:360px; width:90%; }
+.overlay-box h2 { font-size:24px; font-weight:800; color:#2D2926; margin-bottom:8px; }
+.overlay-box p { font-size:16px; color:#555; margin-bottom:16px; }
+.overlay-box button { background:#6B9E78; color:#fff; border:none; border-radius:12px; padding:12px 36px; font-size:17px; font-weight:800; cursor:pointer; letter-spacing:0.03em; }
+
+/* Toast */
+.toast { position:fixed; top:40%; left:50%; transform:translate(-50%,-50%) scale(0.8); background:rgba(45,41,38,0.82); color:#F5F5DC; padding:14px 28px; border-radius:14px; font-size:16px; font-weight:800; opacity:0; transition:all .3s; z-index:99; pointer-events:none; letter-spacing:0.03em; }
+.toast.show { opacity:1; transform:translate(-50%,-50%) scale(1); }
+
+/* Drag line SVG */
+#dragSvg { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:10; }
+#dragSvg line { stroke-width:8; stroke-linecap:round; opacity:0.5; }
+
+/* Stage Select */
+.stage-select-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; max-height:55vh; overflow-y:auto; padding:4px; margin-bottom:16px; }
+.stage-btn { width:100%; aspect-ratio:1; border:none; border-radius:10px; font-size:15px; font-weight:800; cursor:pointer; transition:all .15s; }
+.stage-btn.cleared { background:#D7ECDB; color:#3A7D44; }
+.stage-btn.current { background:#6B9E78; color:#fff; box-shadow:0 0 0 3px #3A7D44; }
+.stage-btn.locked { background:#E8E4D9; color:#AAA59A; }
+.stage-select-grid::-webkit-scrollbar { width:4px; }
+.stage-select-grid::-webkit-scrollbar-thumb { background:#C5C0B5; border-radius:2px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <button class="home-btn" onclick="location.reload()">🏠</button>
+    <span class="stage" id="stageLabel" onclick="showStageSelect()" style="cursor:pointer;">스테이지 1</span>
+    <span class="coin" id="coinLabel">0</span>
+  </div>
+  <div class="question-area" id="questionArea"></div>
+  <div class="grid-container" style="position:relative;">
+    <svg id="dragSvg"></svg>
+    <div class="grid" id="grid"></div>
+  </div>
+  <div class="footer">
+    <button title="설정">⚙️</button>
+    <button title="업적">🏆</button>
+    <button title="힌트" onclick="useHint()">💡</button>
+    <button title="지우개">🧹</button>
+    <div class="gem-wrap">
+      <button title="지식 보관함">💎</button>
+      <div class="gauge-bar"><div class="gauge-fill" id="gaugeFill" style="width:0%"></div></div>
+    </div>
+  </div>
+</div>
+<div class="overlay" id="overlay">
+  <div class="overlay-box" id="overlayBox"></div>
+</div>
+<div class="toast" id="toast"></div>
+<script src="words.js"></script>
+<script>
+// ===== Stage Auto-Generation =====
+const STAGE_COLORS = ["#7CB342","#9575CD","#F9A825","#E91E8A","#29B6F6","#EF5350","#26A69A"];
+const GRID_ROWS = 6, GRID_COLS = 5;
+const DIRS = [[0,1],[1,0],[0,-1],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
+
+// ===== 자주 쓰는 한글 글자 풀 (빈칸 채우기용) =====
+const COMMON_CHARS = "가각간갈감갑강개객거건걸검겁게격견결겸경계고곡곤골공과관광교구국군굴궁권귀규균극근글금급기긴길김깊까깨꼬꽃꾸꿈끌끝나낙난날남납낭내냉너널넓네녀년념녕노녹논놀농높누눈눌느늘능니닐다단달담답당대덕도독돈돌동두둘둥드득들등디딸때또뚜라락란랄람랑래랭러럭런럴렁레려력련렬령례로록론롤롱료루룩룰류륙률릉리릭린림립마막만말많망매맥먹멀멋메면멸명모목몰몽묘무묵문물미민밀밝밤밥방배백번벌범법벽변별병보복본볼봄봉부북분불붉비빈빌빗빛빠빼사삭산살삼상새색생서석선설섬성세소속손솔송수숙순술숨숲쉬스슬습승시식신실심십싸쌀쌍써쏘쓰씨아악안알암압앙애액야약양어억언얼엄업에여역연열염영예오옥온올옷와완왕외요용우운울움웃원월위유육율은을음응의이익인일임입자작잔잘잠잡장재쟁저적전절점접정제조족존졸종좌주죽준줄중즉증지직진질짐집짓징차착찬찰참창채책처천철청체초촌총추축춘출충취측층치칙친칠침칭카코콩크큰클킬타탁탄탈탐탑탕태택터턱테토톤통투특틀파판팔패편평폐포폭표풀품풍피필하학한할함합항해핵행향허헌험혁현혈형혜호혹혼홀홍화확환활황회획횡효후훈훌훨휘휴흉흐흑흔흘흥희흰히힘".split("");
+
+function randomCommonChar(){
+  return COMMON_CHARS[Math.floor(Math.random()*COMMON_CHARS.length)];
+}
+
+function shuffleArray(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+
+function tryPlaceWord(grid, word){
+  const dirs = shuffleArray([...DIRS]);
+  const positions = [];
+  for(let r=0;r<GRID_ROWS;r++) for(let c=0;c<GRID_COLS;c++) positions.push([r,c]);
+  shuffleArray(positions);
+  for(const [sr,sc] of positions){
+    for(const [dr,dc] of dirs){
+      let ok = true;
+      const cells = [];
+      for(let k=0;k<word.length;k++){
+        const nr=sr+dr*k, nc=sc+dc*k;
+        if(nr<0||nr>=GRID_ROWS||nc<0||nc>=GRID_COLS){ ok=false; break; }
+        if(grid[nr][nc]!==null && grid[nr][nc]!==word[k]){ ok=false; break; }
+        cells.push([nr,nc]);
+      }
+      if(ok){
+        cells.forEach(([r,c],i)=> grid[r][c]=word[i]);
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function generateStage(words3){
+  const grid = Array.from({length:GRID_ROWS},()=>Array(GRID_COLS).fill(null));
+  const placed = [];
+  for(const w of words3){
+    if(tryPlaceWord(grid, w.word)) placed.push(w);
+  }
+  // fill empty cells with random syllables
+  for(let r=0;r<GRID_ROWS;r++)
+    for(let c=0;c<GRID_COLS;c++)
+      if(grid[r][c]===null) grid[r][c]=randomCommonChar();
+  return { grid, placed };
+}
+
+// Build 200 stages from WORD_POOL
+// Remove duplicate words from pool
+const seen = new Set();
+const uniquePool = WORD_POOL.filter(w => {
+  if(seen.has(w.word)) return false;
+  seen.add(w.word);
+  return true;
+});
+const pool = shuffleArray([...uniquePool]);
+// filter words that fit in grid (max length = max(GRID_ROWS, GRID_COLS) = 6)
+const maxLen = Math.max(GRID_ROWS, GRID_COLS);
+const usable = pool.filter(w=>w.word.length>=2 && w.word.length<=maxLen);
+
+const STAGES = [];
+let wi = 0;
+for(let s=0;s<200;s++){
+  // pick 3 words for this stage
+  if(wi+3 > usable.length) wi = 0; // wrap around if needed
+  const trio = usable.slice(wi, wi+3);
+  wi += 3;
+  const colors = [STAGE_COLORS[s%STAGE_COLORS.length], STAGE_COLORS[(s+1)%STAGE_COLORS.length], STAGE_COLORS[(s+2)%STAGE_COLORS.length]];
+  const {grid, placed} = generateStage(trio);
+  STAGES.push({
+    stage: s+1,
+    answers: placed.map((w,i)=>({word:w.word, color:colors[i], meaning:w.meaning})),
+    grid,
+    bonus:[]
+  });
+}
+
+// ===== Game State =====
+let currentStageIdx = 0;
+let coins = 0;
+let foundAnswers = [];
+let bonusCount = 0;
+let usedWords = []; // 이전 스테이지에서 나온 정답 단어 기록
+let maxReachedStage = 0; // 도달한 최고 스테이지 인덱스
+let selecting = false;
+let selectedCells = [];
+let dragColor = "#6B9E78";
+
+// ===== DOM =====
+const gridEl = document.getElementById('grid');
+const questionEl = document.getElementById('questionArea');
+const stageLabel = document.getElementById('stageLabel');
+const coinLabel = document.getElementById('coinLabel');
+const gaugeFill = document.getElementById('gaugeFill');
+const dragSvg = document.getElementById('dragSvg');
+const overlay = document.getElementById('overlay');
+const overlayBox = document.getElementById('overlayBox');
+const toastEl = document.getElementById('toast');
+
+function getStage(){ return STAGES[currentStageIdx]; }
+
+// ===== Save / Load =====
+function saveGame(){
+  const data = { currentStageIdx, coins, foundAnswers, bonusCount, usedWords, maxReachedStage };
+  localStorage.setItem('wordPangPang_save', JSON.stringify(data));
+}
+function loadGame(){
+  try {
+    const raw = localStorage.getItem('wordPangPang_save');
+    if(!raw) return;
+    const data = JSON.parse(raw);
+    currentStageIdx = data.currentStageIdx ?? 0;
+    coins = data.coins ?? 0;
+    foundAnswers = data.foundAnswers ?? [];
+    bonusCount = data.bonusCount ?? 0;
+    usedWords = data.usedWords ?? [];
+    maxReachedStage = data.maxReachedStage ?? data.currentStageIdx ?? 0;
+  } catch(e){ /* ignore corrupt data */ }
+}
+
+// ===== Render =====
+function renderAll(){
+  const s = getStage();
+  stageLabel.textContent = `스테이지 ${currentStageIdx + 1}`;
+  coinLabel.textContent = coins;
+  renderQuestion();
+  renderGrid();
+  gaugeFill.style.width = (bonusCount/10*100)+'%';
+}
+
+function renderQuestion(){
+  const s = getStage();
+  questionEl.innerHTML = '';
+  s.answers.forEach((a,i)=>{
+    const slot = document.createElement('div');
+    slot.className = 'word-slot';
+    const label = document.createElement('div');
+    label.className = 'label';
+    label.style.background = a.color;
+    slot.appendChild(label);
+    const circles = document.createElement('div');
+    circles.className = 'circles';
+    for(let c=0;c<a.word.length;c++){
+      const circle = document.createElement('div');
+      const isFound = foundAnswers.includes(i);
+      circle.className = 'circle '+(isFound?'found':'empty');
+      circle.style.background = isFound? a.color : 'rgba(255,255,255,0.25)';
+      circle.textContent = isFound? a.word[c] : '';
+      circles.appendChild(circle);
+    }
+    slot.appendChild(circles);
+    questionEl.appendChild(slot);
+  });
+}
+
+function renderGrid(){
+  const s = getStage();
+  gridEl.innerHTML = '';
+  s.grid.forEach((row,r)=>{
+    row.forEach((ch,c)=>{
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.r = r;
+      cell.dataset.c = c;
+      cell.textContent = ch;
+      // check if this cell is part of a found answer
+      foundAnswers.forEach(ai=>{
+        const info = getAnswerCells(ai);
+        if(info && info.some(p=>p[0]===r&&p[1]===c)){
+          const hl = document.createElement('div');
+          hl.className = 'highlight';
+          hl.style.background = s.answers[ai].color;
+          cell.classList.add('found-cell');
+          cell.appendChild(hl);
+        }
+      });
+      gridEl.appendChild(cell);
+    });
+  });
+}
+
+// ===== Answer cell positions (precomputed) =====
+const answerCellsCache = {};
+function getAnswerCells(ai){
+  const key = currentStageIdx+'_'+ai;
+  if(answerCellsCache[key]) return answerCellsCache[key];
+  const s = getStage();
+  const word = s.answers[ai].word;
+  const result = findWordInGrid(word, s.grid);
+  if(result) answerCellsCache[key] = result;
+  return result;
+}
+
+function findWordInGrid(word, grid){
+  const dirs = [[0,1],[1,0],[0,-1],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
+  for(let r=0;r<grid.length;r++){
+    for(let c=0;c<grid[0].length;c++){
+      if(grid[r][c]!==word[0]) continue;
+      for(const [dr,dc] of dirs){
+        let ok=true;
+        const cells=[];
+        for(let k=0;k<word.length;k++){
+          const nr=r+dr*k, nc=c+dc*k;
+          if(nr<0||nr>=grid.length||nc<0||nc>=grid[0].length||grid[nr][nc]!==word[k]){ok=false;break;}
+          cells.push([nr,nc]);
+        }
+        if(ok) return cells;
+      }
+    }
+  }
+  return null;
+}
+
+// ===== Drag Logic =====
+function getCellFromPoint(x,y){
+  const el = document.elementFromPoint(x,y);
+  if(!el) return null;
+  const cell = el.closest('.cell');
+  return cell;
+}
+
+function isAdjacent(a,b){
+  const dr=Math.abs(a[0]-b[0]), dc=Math.abs(a[1]-b[1]);
+  return dr<=1 && dc<=1 && (dr+dc>0);
+}
+
+function isInLine(cells){
+  if(cells.length<=1) return true;
+  const dr = cells[1][0]-cells[0][0];
+  const dc = cells[1][1]-cells[0][1];
+  for(let i=2;i<cells.length;i++){
+    if(cells[i][0]-cells[i-1][0]!==dr || cells[i][1]-cells[i-1][1]!==dc) return false;
+  }
+  return true;
+}
+
+function startDrag(x,y){
+  const cell = getCellFromPoint(x,y);
+  if(!cell) return;
+  selecting = true;
+  selectedCells = [[+cell.dataset.r, +cell.dataset.c]];
+  updateDragVisual();
+}
+
+function moveDrag(x,y){
+  if(!selecting) return;
+  const cell = getCellFromPoint(x,y);
+  if(!cell) return;
+  const pos = [+cell.dataset.r, +cell.dataset.c];
+  const last = selectedCells[selectedCells.length-1];
+  if(pos[0]===last[0]&&pos[1]===last[1]) return;
+  // check if going back
+  if(selectedCells.length>=2){
+    const prev = selectedCells[selectedCells.length-2];
+    if(pos[0]===prev[0]&&pos[1]===prev[1]){
+      selectedCells.pop();
+      updateDragVisual();
+      return;
+    }
+  }
+  if(!isAdjacent(last,pos)) return;
+  const next = [...selectedCells, pos];
+  if(!isInLine(next)) return;
+  if(selectedCells.some(c=>c[0]===pos[0]&&c[1]===pos[1])) return;
+  selectedCells.push(pos);
+  updateDragVisual();
+}
+
+function endDrag(){
+  if(!selecting) return;
+  selecting = false;
+  checkSelection();
+  clearDragVisual();
+}
+
+function updateDragVisual(){
+  // highlight cells
+  document.querySelectorAll('.cell.selecting').forEach(c=>c.classList.remove('selecting'));
+  selectedCells.forEach(([r,c])=>{
+    const cell = gridEl.children[r*5+c];
+    if(cell) cell.classList.add('selecting');
+  });
+  // draw SVG lines
+  dragSvg.innerHTML = '';
+  if(selectedCells.length<2) return;
+  for(let i=0;i<selectedCells.length-1;i++){
+    const a = getCellCenter(selectedCells[i]);
+    const b = getCellCenter(selectedCells[i+1]);
+    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',a.x); line.setAttribute('y1',a.y);
+    line.setAttribute('x2',b.x); line.setAttribute('y2',b.y);
+    line.setAttribute('stroke', dragColor);
+    dragSvg.appendChild(line);
+  }
+}
+
+function clearDragVisual(){
+  document.querySelectorAll('.cell.selecting').forEach(c=>c.classList.remove('selecting'));
+  dragSvg.innerHTML = '';
+  selectedCells = [];
+}
+
+function getCellCenter([r,c]){
+  const cell = gridEl.children[r*5+c];
+  if(!cell) return {x:0,y:0};
+  const rect = cell.getBoundingClientRect();
+  const svgRect = dragSvg.getBoundingClientRect();
+  return { x: rect.left+rect.width/2-svgRect.left, y: rect.top+rect.height/2-svgRect.top };
+}
+
+// ===== Check Selection =====
+function checkSelection(){
+  const s = getStage();
+  const word = selectedCells.map(([r,c])=>s.grid[r][c]).join('');
+  // check answers
+  for(let i=0;i<s.answers.length;i++){
+    if(foundAnswers.includes(i)) continue;
+    if(s.answers[i].word === word){
+      foundAnswers.push(i);
+      dragColor = s.answers[i].color;
+      renderAll();
+      saveGame();
+      if(foundAnswers.length === s.answers.length){
+        coins += 10;
+        coinLabel.textContent = coins;
+        saveGame();
+        setTimeout(()=>showClear(), 500);
+      }
+      return;
+    }
+  }
+  // check bonus
+  if(s.bonus && s.bonus.includes(word) && !usedWords.includes(word)){
+    // remove from bonus so can't collect twice
+    s.bonus = s.bonus.filter(w=>w!==word);
+    bonusCount++;
+    if(bonusCount>=10){ coins+=50; bonusCount=0; showToast('보너스 +50 포인트!'); }
+    else { showToast('새로운 단어를 모았어요! 💎'); }
+    coinLabel.textContent = coins;
+    gaugeFill.style.width = (bonusCount/10*100)+'%';
+    saveGame();
+    return;
+  }
+}
+
+// ===== Hint =====
+function useHint(){
+  const s = getStage();
+  for(let i=0;i<s.answers.length;i++){
+    if(foundAnswers.includes(i)) continue;
+    const cells = getAnswerCells(i);
+    if(cells){
+      // flash first cell
+      const cell = gridEl.children[cells[0][0]*5+cells[0][1]];
+      cell.style.outline = '3px solid '+s.answers[i].color;
+      setTimeout(()=>{ cell.style.outline=''; },1500);
+    }
+    break;
+  }
+}
+
+// ===== Overlay & Toast =====
+function showClear(){
+  const s = getStage();
+  let html = `<h2>🎉 스테이지 클리어!</h2><p style="margin-bottom:16px;">+10 포인트 획득!</p>`;
+  html += `<div style="text-align:left;margin-bottom:16px;">`;
+  s.answers.forEach(a=>{
+    html += `<div style="margin-bottom:14px;">
+      <div style="font-size:22px;font-weight:800;color:${a.color};letter-spacing:0.05em;">${a.word}</div>
+      <div style="font-size:16px;color:#2D2926;margin-top:3px;line-height:1.5;">${a.meaning}</div>
+    </div>`;
+  });
+  html += `</div>`;
+  html += `<button onclick="nextStage()">확인</button>`;
+  overlayBox.innerHTML = html;
+  overlay.classList.add('show');
+}
+
+function nextStage(){
+  // 현재 스테이지 정답 단어를 usedWords에 기록
+  const s = getStage();
+  s.answers.forEach(a=>{ if(!usedWords.includes(a.word)) usedWords.push(a.word); });
+  overlay.classList.remove('show');
+  foundAnswers = [];
+  dragColor = '#6B9E78';
+  if(currentStageIdx < STAGES.length-1){
+    currentStageIdx++;
+    if(currentStageIdx > maxReachedStage) maxReachedStage = currentStageIdx;
+  } else {
+    currentStageIdx = 0;
+    usedWords = [];
+    showToast('모든 스테이지 완료! 처음부터 다시 시작합니다.');
+  }
+  renderAll();
+  saveGame();
+}
+
+function showToast(msg){
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  setTimeout(()=>toastEl.classList.remove('show'), 1800);
+}
+
+// ===== Stage Select =====
+function showStageSelect(){
+  let html = `<h2 style="margin-bottom:4px;">📖 스테이지 선택</h2>`;
+  html += `<p style="margin-bottom:12px;font-size:14px;">이동할 스테이지를 선택하세요</p>`;
+  html += `<div class="stage-select-grid">`;
+  for(let i=0;i<STAGES.length;i++){
+    let cls = 'stage-btn ';
+    const reachable = i <= maxReachedStage;
+    if(i === currentStageIdx) cls += 'current';
+    else if(reachable) cls += 'cleared';
+    else cls += 'locked';
+    if(reachable){
+      html += `<button class="${cls}" onclick="goToStage(${i})">${i+1}</button>`;
+    } else {
+      html += `<button class="${cls}" disabled>🔒</button>`;
+    }
+  }
+  html += `</div>`;
+  html += `<button onclick="overlay.classList.remove('show')">닫기</button>`;
+  overlayBox.innerHTML = html;
+  overlay.classList.add('show');
+  // 현재 스테이지 버튼이 보이도록 스크롤
+  setTimeout(()=>{
+    const grid = overlayBox.querySelector('.stage-select-grid');
+    const cur = overlayBox.querySelector('.stage-btn.current');
+    if(grid && cur) cur.scrollIntoView({block:'center',behavior:'smooth'});
+  },100);
+}
+
+function goToStage(idx){
+  if(idx < 0 || idx >= STAGES.length || idx > maxReachedStage) return;
+  overlay.classList.remove('show');
+  currentStageIdx = idx;
+  foundAnswers = [];
+  dragColor = '#6B9E78';
+  renderAll();
+  saveGame();
+}
+
+// ===== Events =====
+gridEl.addEventListener('pointerdown', e=>{
+  e.preventDefault();
+  gridEl.setPointerCapture(e.pointerId);
+  startDrag(e.clientX,e.clientY);
+});
+gridEl.addEventListener('pointermove', e=>{
+  if(selecting){ e.preventDefault(); moveDrag(e.clientX,e.clientY); }
+});
+gridEl.addEventListener('pointerup', e=>{
+  if(selecting){ gridEl.releasePointerCapture(e.pointerId); }
+  endDrag();
+});
+gridEl.addEventListener('pointercancel', e=>{
+  if(selecting){ try{ gridEl.releasePointerCapture(e.pointerId); }catch(ex){} }
+  endDrag();
+});
+// iOS Safari 추가 방어: 터치 이벤트가 기본 동작(스크롤 등)을 하지 않도록
+gridEl.addEventListener('touchstart', e=>e.preventDefault(), {passive:false});
+gridEl.addEventListener('touchmove', e=>e.preventDefault(), {passive:false});
+// 화면 밖으로 나갔을 때 드래그 종료
+document.addEventListener('pointerup', ()=>endDrag());
+document.addEventListener('pointercancel', ()=>endDrag());
+
+// ===== Init =====
+loadGame();
+renderAll();
+</script>
+</body>
+</html>
