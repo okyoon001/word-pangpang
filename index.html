@@ -322,15 +322,14 @@ function findWordInGrid(word, grid){
 
 // ===== Drag Logic (대각선 스냅 보정 포함) =====
 function getCellFromPoint(x,y){
-  // 그리드 스냅: 터치 지점에서 가장 가까운 셀 중심을 찾아 보정
+  // 그리드 스냅: 터치 지점에서 가장 가까운 셀 중심을 찾아 보정 (반경 제한 없이 가장 가까운 셀)
   const cells = gridEl.children;
   let best = null, bestDist = Infinity;
   for(let i=0;i<cells.length;i++){
     const rect = cells[i].getBoundingClientRect();
     const cx = rect.left + rect.width/2, cy = rect.top + rect.height/2;
     const dist = Math.hypot(x-cx, y-cy);
-    // 셀 크기의 70% 반경 내에 있으면 후보
-    if(dist < rect.width*0.7 && dist < bestDist){
+    if(dist < bestDist){
       bestDist = dist; best = cells[i];
     }
   }
@@ -362,16 +361,37 @@ function moveDrag(x,y){
   const pos = [+cell.dataset.r, +cell.dataset.c];
   const last = selectedCells[selectedCells.length-1];
   if(pos[0]===last[0]&&pos[1]===last[1]) return;
+  // 뒤로 돌아가기
   if(selectedCells.length>=2){
     const prev = selectedCells[selectedCells.length-2];
     if(pos[0]===prev[0]&&pos[1]===prev[1]){ selectedCells.pop(); updateDragVisual(); return; }
   }
-  if(!isAdjacent(last,pos)) return;
-  const next = [...selectedCells, pos];
-  if(!isInLine(next)) return;
-  if(selectedCells.some(c=>c[0]===pos[0]&&c[1]===pos[1])) return;
-  selectedCells.push(pos);
-  updateDragVisual();
+  // 인접하면 바로 추가
+  if(isAdjacent(last,pos)){
+    const next = [...selectedCells, pos];
+    if(!isInLine(next)) return;
+    if(selectedCells.some(c=>c[0]===pos[0]&&c[1]===pos[1])) return;
+    selectedCells.push(pos);
+    updateDragVisual();
+    return;
+  }
+  // 인접하지 않으면 중간 셀 보간 시도 (빠른 대각선 드래그 보정)
+  const dr = pos[0]-last[0], dc = pos[1]-last[1];
+  const steps = Math.max(Math.abs(dr), Math.abs(dc));
+  if(steps>=2 && Math.abs(dr)===Math.abs(dc) || dr===0 || dc===0){
+    const stepR = dr===0?0:(dr>0?1:-1), stepC = dc===0?0:(dc>0?1:-1);
+    const interpolated = [];
+    for(let s=1;s<=steps;s++){
+      const ir = last[0]+stepR*s, ic = last[1]+stepC*s;
+      if(ir<0||ir>=GRID_ROWS||ic<0||ic>=GRID_COLS) return;
+      if(selectedCells.some(c=>c[0]===ir&&c[1]===ic)) return;
+      interpolated.push([ir,ic]);
+    }
+    const next = [...selectedCells, ...interpolated];
+    if(!isInLine(next)) return;
+    interpolated.forEach(p=>selectedCells.push(p));
+    updateDragVisual();
+  }
 }
 function endDrag(){
   if(!selecting) return;
