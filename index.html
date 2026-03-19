@@ -707,10 +707,25 @@ gridEl.addEventListener('pointercancel', e=>{
   if(selecting){ try{ gridEl.releasePointerCapture(e.pointerId); }catch(ex){} }
   endDrag();
 });
-gridEl.addEventListener('touchstart', e=>e.preventDefault(), {passive:false});
-gridEl.addEventListener('touchmove', e=>e.preventDefault(), {passive:false});
+gridEl.addEventListener('touchstart', e=>{
+  e.preventDefault();
+  const t = e.touches[0];
+  startDrag(t.clientX, t.clientY);
+}, {passive:false});
+gridEl.addEventListener('touchmove', e=>{
+  e.preventDefault();
+  if(selecting){
+    const t = e.touches[0];
+    moveDrag(t.clientX, t.clientY);
+  }
+}, {passive:false});
+gridEl.addEventListener('touchend', e=>{
+  e.preventDefault();
+  endDrag();
+}, {passive:false});
 document.addEventListener('pointerup', ()=>endDrag());
 document.addEventListener('pointercancel', ()=>endDrag());
+document.addEventListener('touchend', ()=>endDrag());
 
 // ===== Home Screen =====
 const homeScreen = document.getElementById('homeScreen');
