@@ -322,15 +322,78 @@ function findWordInGrid(word, grid){
 
 // ===== Drag Logic (대각선 스냅 보정 포함) =====
 function getCellFromPoint(x,y){
-  // 그리드 스냅: 터치 지점에서 가장 가까운 셀 중심을 찾아 보정 (반경 제한 없이 가장 가까운 셀)
+  // 그리드 스냅: 드래그 방향 가중치 적용으로 대각선 인식 강화
   const cells = gridEl.children;
-  let best = null, bestDist = Infinity;
+  if(!cells.length) return null;
+  const cellRect = cells[0].getBoundingClientRect();
+  const cellSize = Math.max(cellRect.width, cellRect.height);
+  const maxRadius = cellSize * 0.85;
+
+  // 드래그 방향이 정해진 경우 방향 벡터 계산
+  let dirR=0, dirC=0, hasDir=false;
+  if(selecting && selectedCells.length>=2){
+    dirR = selectedCells[1][0]-selectedCells[0][0];
+    dirC = selectedCells[1][1]-selectedCells[0][1];
+    hasDir = true;
+  } else if(selecting && selectedCells.length===1){
+    // 첫 셀에서 드래그 시작: 터치 이동 방향으로 방향 추정
+    const startCell = gridEl.children[selectedCells[0][0]*5+selectedCells[0][1]];
+    if(startCell){
+      const sr = startCell.getBoundingClientRect();
+      const scx = sr.left+sr.width/2, scy = sr.top+sr.height/2;
+      const dx = x-scx, dy = y-scy;
+      const threshold = cellSize * 0.25;
+      if(Math.abs(dx)>threshold || Math.abs(dy)>threshold){
+        // 8방향 중 가장 가까운 방향 추정
+        const angle = Math.atan2(dy, dx);
+        const snapAngles = [0, Math.PI/4, Math.PI/2, 3*Math.PI/4, Math.PI, -3*Math.PI/4, -Math.PI/2, -Math.PI/4];
+        const dirs = [[0,1],[1,1],[1,0],[1,-1],[0,-1],[-1,-1],[-1,0],[-1,1]];
+        let bestAngleIdx = 0, bestAngleDiff = Infinity;
+        for(let i=0;i<snapAngles.length;i++){
+          let diff = Math.abs(angle - snapAngles[i]);
+          if(diff > Math.PI) diff = 2*Math.PI - diff;
+          if(diff < bestAngleDiff){ bestAngleDiff = diff; bestAngleIdx = i; }
+        }
+        dirR = dirs[bestAngleIdx][0];
+        dirC = dirs[bestAngleIdx][1];
+        hasDir = true;
+      }
+    }
+  }
+
+  let best = null, bestScore = Infinity;
   for(let i=0;i<cells.length;i++){
     const rect = cells[i].getBoundingClientRect();
     const cx = rect.left + rect.width/2, cy = rect.top + rect.height/2;
     const dist = Math.hypot(x-cx, y-cy);
-    if(dist < bestDist){
-      bestDist = dist; best = cells[i];
+    if(dist > maxRadius) continue;
+
+    let score = dist;
+    // 방향이 정해졌으면 해당 방향 라인 위의 셀에 보너스
+    if(hasDir && selecting){
+      const r = +cells[i].dataset.r, c = +cells[i].dataset.c;
+      const last = selectedCells[selectedCells.length-1];
+      const er = r-last[0], ec = c-last[1];
+      // 현재 방향과 일치하는 셀이면 거리 점수를 30% 할인
+      if(dirR!==0||dirC!==0){
+        const normDir = Math.hypot(dirR,dirC);
+        const normE = Math.hypot(er,ec);
+        if(normE>0){
+          const dot = (dirR*er+dirC*ec)/(normDir*normE);
+          if(dot > 0.7) score *= 0.7;
+        }
+      }
+    }
+    if(score < bestScore){ bestScore = score; best = cells[i]; }
+  }
+  // maxRadius 내에 없으면 가장 가까운 셀 반환
+  if(!best){
+    let fallbackDist = Infinity;
+    for(let i=0;i<cells.length;i++){
+      const rect = cells[i].getBoundingClientRect();
+      const cx = rect.left + rect.width/2, cy = rect.top + rect.height/2;
+      const dist = Math.hypot(x-cx, y-cy);
+      if(dist < fallbackDist){ fallbackDist = dist; best = cells[i]; }
     }
   }
   return best;
