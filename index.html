@@ -433,8 +433,8 @@ function moveDrag(x,y){
   const dx = x - ox, dy = y - oy;
   const dist = Math.hypot(dx, dy);
 
-  // 아직 셀 하나 크기의 40%도 안 움직였으면 시작 셀만 유지
-  if(dist < cellSize * 0.4){
+  // 아직 셀 하나 크기의 25%도 안 움직였으면 시작 셀만 유지
+  if(dist < cellSize * 0.25){
     selectedCells = [dragOrigin];
     updateDragVisual();
     return;
@@ -457,7 +457,7 @@ function moveDrag(x,y){
   // 방향 벡터의 화면상 단위 벡터
   const dirLen = Math.hypot(dirR, dirC);
   // 방향 축 위에 투영한 거리
-  const projDist = (dx*(dirC) + dy*(dirR)) / (dirLen * cellSize);
+  const projDist = (dx*(dirC) + dy*(dirR)) / (dirLen * cellSize * 0.85);
   const numCells = Math.max(0, Math.min(Math.max(GRID_ROWS,GRID_COLS)-1, Math.round(Math.abs(projDist))));
 
   // 시작 셀부터 해당 방향으로 numCells개 셀 선택
