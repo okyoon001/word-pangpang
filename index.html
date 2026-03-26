@@ -410,55 +410,76 @@ function isInLine(cells){
   }
   return true;
 }
+let dragStartX=0, dragStartY=0, dragOrigin=null;
 function startDrag(x,y){
   const cell = getCellFromPoint(x,y);
   if(!cell) return;
   selecting = true;
-  selectedCells = [[+cell.dataset.r, +cell.dataset.c]];
+  dragOrigin = [+cell.dataset.r, +cell.dataset.c];
+  dragStartX = x; dragStartY = y;
+  selectedCells = [dragOrigin];
   updateDragVisual();
 }
 function moveDrag(x,y){
-  if(!selecting) return;
-  const cell = getCellFromPoint(x,y);
-  if(!cell) return;
-  const pos = [+cell.dataset.r, +cell.dataset.c];
-  const last = selectedCells[selectedCells.length-1];
-  if(pos[0]===last[0]&&pos[1]===last[1]) return;
-  // 뒤로 돌아가기
-  if(selectedCells.length>=2){
-    const prev = selectedCells[selectedCells.length-2];
-    if(pos[0]===prev[0]&&pos[1]===prev[1]){ selectedCells.pop(); updateDragVisual(); return; }
-  }
-  // 인접하면 바로 추가
-  if(isAdjacent(last,pos)){
-    const next = [...selectedCells, pos];
-    if(!isInLine(next)) return;
-    if(selectedCells.some(c=>c[0]===pos[0]&&c[1]===pos[1])) return;
-    selectedCells.push(pos);
+  if(!selecting || !dragOrigin) return;
+  // 시작 셀의 화면 중심 좌표
+  const originCell = gridEl.children[dragOrigin[0]*5+dragOrigin[1]];
+  if(!originCell) return;
+  const oRect = originCell.getBoundingClientRect();
+  const ox = oRect.left+oRect.width/2, oy = oRect.top+oRect.height/2;
+  const cellSize = oRect.width;
+
+  // 시작점에서 현재 터치까지의 벡터
+  const dx = x - ox, dy = y - oy;
+  const dist = Math.hypot(dx, dy);
+
+  // 아직 셀 하나 크기의 40%도 안 움직였으면 시작 셀만 유지
+  if(dist < cellSize * 0.4){
+    selectedCells = [dragOrigin];
     updateDragVisual();
     return;
   }
-  // 인접하지 않으면 중간 셀 보간 시도 (빠른 대각선 드래그 보정)
-  const dr = pos[0]-last[0], dc = pos[1]-last[1];
-  const steps = Math.max(Math.abs(dr), Math.abs(dc));
-  if(steps>=2 && Math.abs(dr)===Math.abs(dc) || dr===0 || dc===0){
-    const stepR = dr===0?0:(dr>0?1:-1), stepC = dc===0?0:(dc>0?1:-1);
-    const interpolated = [];
-    for(let s=1;s<=steps;s++){
-      const ir = last[0]+stepR*s, ic = last[1]+stepC*s;
-      if(ir<0||ir>=GRID_ROWS||ic<0||ic>=GRID_COLS) return;
-      if(selectedCells.some(c=>c[0]===ir&&c[1]===ic)) return;
-      interpolated.push([ir,ic]);
-    }
-    const next = [...selectedCells, ...interpolated];
-    if(!isInLine(next)) return;
-    interpolated.forEach(p=>selectedCells.push(p));
+
+  // 8방향 중 가장 가까운 방향 결정
+  const angle = Math.atan2(dy, dx);
+  // 순서: →, ↘, ↓, ↙, ←, ↖, ↑, ↗
+  const snapAngles = [0, Math.PI/4, Math.PI/2, 3*Math.PI/4, Math.PI, -3*Math.PI/4, -Math.PI/2, -Math.PI/4];
+  const dirs = [[0,1],[1,1],[1,0],[1,-1],[0,-1],[-1,-1],[-1,0],[-1,1]];
+  let bestIdx = 0, bestDiff = Infinity;
+  for(let i=0;i<snapAngles.length;i++){
+    let diff = Math.abs(angle - snapAngles[i]);
+    if(diff > Math.PI) diff = 2*Math.PI - diff;
+    if(diff < bestDiff){ bestDiff = diff; bestIdx = i; }
+  }
+  const dirR = dirs[bestIdx][0], dirC = dirs[bestIdx][1];
+
+  // 해당 방향으로 터치 위치까지 몇 칸인지 계산
+  // 방향 벡터의 화면상 단위 벡터
+  const dirLen = Math.hypot(dirR, dirC);
+  // 방향 축 위에 투영한 거리
+  const projDist = (dx*(dirC) + dy*(dirR)) / (dirLen * cellSize);
+  const numCells = Math.max(0, Math.min(Math.max(GRID_ROWS,GRID_COLS)-1, Math.round(Math.abs(projDist))));
+
+  // 시작 셀부터 해당 방향으로 numCells개 셀 선택
+  const newSelected = [dragOrigin];
+  for(let s=1; s<=numCells; s++){
+    const nr = dragOrigin[0] + dirR*s;
+    const nc = dragOrigin[1] + dirC*s;
+    if(nr<0||nr>=GRID_ROWS||nc<0||nc>=GRID_COLS) break;
+    newSelected.push([nr, nc]);
+  }
+
+  // 변경이 있을 때만 업데이트
+  if(newSelected.length !== selectedCells.length ||
+     newSelected.some((c,i) => !selectedCells[i] || c[0]!==selectedCells[i][0] || c[1]!==selectedCells[i][1])){
+    selectedCells = newSelected;
     updateDragVisual();
   }
 }
 function endDrag(){
   if(!selecting) return;
   selecting = false;
+  dragOrigin = null;
   checkSelection();
   clearDragVisual();
 }
