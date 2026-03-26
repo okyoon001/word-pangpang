@@ -600,66 +600,27 @@ function showQuizTest(){
 }
 
 function startQuizDraw(){
-  const area = document.getElementById('quizCanvasArea');
-  if(!area) return;
-  // 캔버스 대신 텍스트 입력 사용 (OCR 없이 실용적 구현)
   const inputArea = document.getElementById('quizInputArea');
-  inputArea.innerHTML = `<div style="display:flex;gap:8px;align-items:center;justify-content:center;">`;
-  // 글자 수만큼 입력칸 생성
-  let inputs = '';
-  for(let i=0;i<quizAnswer.length;i++){
-    inputs += `<input type="text" class="quiz-char-input" data-idx="${i}"
-      style="width:64px;height:74px;text-align:center;font-size:32px;font-weight:800;
+  inputArea.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+    <input type="text" id="quizSingleInput"
+      style="width:90%;max-width:280px;height:60px;text-align:center;font-size:30px;font-weight:800;
       border:2.5px solid #D5D0C0;border-radius:12px;background:#fff;color:#2D2926;
-      -webkit-user-select:text;user-select:text;outline:none;"
-      onfocus="this.select()">`;
-  }
-  inputArea.innerHTML = `<div style="display:flex;gap:8px;align-items:center;justify-content:center;">${inputs}</div>`;
-  // 한글 조합 완료 후 다음 칸 이동
-  inputArea.querySelectorAll('.quiz-char-input').forEach(inp => {
-    let composing = false;
-    inp.addEventListener('compositionstart', () => { composing = true; });
-    inp.addEventListener('compositionend', () => {
-      composing = false;
-      // 한글 1글자만 남기고 다음 칸으로
-      if(inp.value.length >= 1){
-        inp.value = inp.value.charAt(0);
-        const idx = parseInt(inp.dataset.idx);
-        const next = inp.parentElement.children[idx+1];
-        if(next) next.focus();
-      }
-    });
-    inp.addEventListener('input', () => {
-      if(!composing && inp.value.length > 1){
-        inp.value = inp.value.charAt(0);
-        const idx = parseInt(inp.dataset.idx);
-        const next = inp.parentElement.children[idx+1];
-        if(next) next.focus();
-      }
-    });
-    // 빈칸에서 백스페이스 → 이전 칸으로
-    inp.addEventListener('keydown', (e) => {
-      if(e.key === 'Backspace' && inp.value === ''){
-        const idx = parseInt(inp.dataset.idx);
-        const prev = inp.parentElement.children[idx-1];
-        if(prev){ prev.focus(); prev.select(); }
-      }
-    });
-  });
-  // 첫 칸에 포커스
-  const firstInput = inputArea.querySelector('.quiz-char-input');
-  if(firstInput) setTimeout(()=>firstInput.focus(), 200);
+      -webkit-user-select:text;user-select:text;outline:none;letter-spacing:0.3em;"
+      placeholder="${'● '.repeat(quizAnswer.length).trim()}"
+      maxlength="${quizAnswer.length + 2}">
+    <div style="font-size:13px;color:#999;">${quizAnswer.length}글자를 입력하세요</div>
+  </div>`;
+  const inp = document.getElementById('quizSingleInput');
+  if(inp) setTimeout(()=>inp.focus(), 200);
 }
 
 function submitQuizAnswer(){
-  const inputs = document.querySelectorAll('.quiz-char-input');
-  if(inputs.length === 0){ showToast('먼저 "정답 적기"를 눌러주세요!'); return; }
-  let answer = '';
-  inputs.forEach(inp => answer += inp.value);
-  if(answer.length !== quizAnswer.length){ showToast(`${quizAnswer.length}글자를 모두 입력해 주세요!`); return; }
+  const inp = document.getElementById('quizSingleInput');
+  if(!inp){ showToast('먼저 "정답 적기"를 눌러주세요!'); return; }
+  const answer = inp.value.trim();
+  if(answer.length !== quizAnswer.length){ showToast(`${quizAnswer.length}글자를 입력해 주세요!`); return; }
   
   if(answer === quizAnswer){
-    // 정답! 메달 추가
     if(!medals.some(m=>m.word===quizAnswer)){
       medals.push({word:quizAnswer, meaning:WORD_POOL.find(w=>w.word===quizAnswer)?.meaning || ''});
       saveGame();
@@ -669,7 +630,8 @@ function submitQuizAnswer(){
     showToast('🎉 정답! +5 포인트, 메달 획득!');
   } else {
     showToast(`아쉬워요! 정답은 "${quizAnswer}" 이에요.`);
-    inputs.forEach((inp,i)=>{ inp.value = quizAnswer[i]; inp.style.borderColor='#EF5350'; });
+    inp.value = quizAnswer;
+    inp.style.borderColor = '#EF5350';
   }
 }
 
